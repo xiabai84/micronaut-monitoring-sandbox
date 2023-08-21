@@ -1,0 +1,35 @@
+name: Docker Image CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Setup Java JDK
+        uses: actions/setup-java@v1.4.3
+        with:
+          java-version: 17
+      - name: build jar and run tests
+        run: ./gradlew --no-daemon clean build
+        env:
+          GITHUB_MAVEN_TOKEN: ${{ secrets.VKB_GITHUB_NPM_SECRET }}
+      - name: Diff between builds
+        env:
+          GIT_COMPARE_URL: ${{ github.event.compare }}
+        run: echo "For differences between the builds see $GIT_COMPARE_URL"
+      - name: Build the Docker image
+        env:
+          GIT_AUTHOR_NAME: ${{ github.event.head_commit.author.name }}
+        run: docker build . --file Dockerfile
+          --label org.opencontainers.image.created="$(date +'%Y-%m-%dT%H:%M:%S%z')"
+          --label org.opencontainers.image.authors="$GIT_AUTHOR_NAME <xxx@xxx.com>"
+          --label org.opencontainers.image.source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+          --label org.opencontainers.image.revision="$GITHUB_SHA"
+          --label org.opencontainers.image.url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          --tag ghcr.io/xiabai84/micronaut-monitoring-sandbox/micronaut-monitoring-sandbox:latest
+      - name: Login
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: docker login https://ghcr.io --username dummy --password $GITHUB_TOKEN
+      - name: Push
+        run: docker push ghcr.io/xiabai84/micronaut-monitoring-sandbox/micronaut-monitoring-sandbox:latest
